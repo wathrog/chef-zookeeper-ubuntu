@@ -18,29 +18,16 @@
 #
 include_recipe "zookeeper-ubuntu"
 
-# get environment
-node_env = node.chef_environment
-puts node_env
+server_hosts = node.set['zookeeper']['server']['hosts']
 
-if node_env == "_default" then
-   raise "Can't run on default environment"
+myid = server_hosts.find_index(node.name) + 1
+
+if myid.nil? then
+   raise "Can't find ME node in node list! Impossible to install a zookeeper server!"
 end
 
-node_list = search(:node, "chef_environment:#{node_env}")
-
-# DEBUG
-node_list.each_with_index do |host, idx|
-   puts "Host: #{host.name} - Index: #{idx}"
-end
-# END DEBUG
-
-server_hosts = node_list.map{|host| host.name}.sort
-
-config_dir = "/etc/zookeeper/conf.#{node_env}_#{node['deployment_id']}"
 data_dir = node['zookeeper']['data']['dir']
-client_port = node['zookeeper']['client']['port']
-
-myid = server_hosts.find_index(node.name)
+config_dir = node['zookeeper']['config']['dir']
 
 directory data_dir do
    owner "zookeeper"
@@ -49,48 +36,12 @@ directory data_dir do
    action :create
 end
 
-directory config_dir do
-   owner "root"
-   group "root"
-   mode "0755"
-   action :create
-end
-
-template_variables = {
-   :zookeeper_server_hosts 	=> server_hosts,
-   :zookeeper_data_dir 		=> data_dir,
-   :myid 			=> myid,
-   :zookeeper_client_port	=> client_port
-}
-
-%w{ configuration.xsl  environment  log4j.properties zoo.cfg }.each do |templ|
-   template "#{config_dir}/#{templ}" do
-      source "#{templ}.erb"
-      mode "0644"
-      owner "root"
-      group "root"
-      variables(template_variables)
-   end
-end
-
 template "#{config_dir}/myid" do
    source "myid.erb"
    mode "0644"
    owner "zookeeper"
    group "zookeeper"
-   variables(template_variables)
-end
-
-# update-alternatives install
-execute "update-alternatives" do
-  command "update-alternatives --install /etc/zookeeper/conf zookeeper-conf #{config_dir} 50"
-  action :run
-end
-
-# update-alternatives set
-execute "update-alternatives" do
-  command "update-alternatives --set zookeeper-conf #{config_dir}"
-  action :run
+   variables({:myid => myid})
 end
 
 package "zookeeperd"
