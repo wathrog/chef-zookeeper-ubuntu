@@ -20,7 +20,7 @@ include_recipe "zookeeper-ubuntu"
 
 server_hosts = node.set['zookeeper']['server']['hosts']
 
-myid = server_hosts.find_index(node.name) + 1
+myid = server_hosts.find_index(node.name)
 
 if myid.nil? then
    raise "Can't find ME node in node list! Impossible to install a zookeeper server!"
